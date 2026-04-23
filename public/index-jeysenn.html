@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kedarr & Seena - Laravel Realtime 💕</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pink-500: #ec4899;
+            --bg-primary: #fff0f6;
+            --text-primary: #4a1942;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: var(--bg-primary); color: var(--text-primary); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .status { position: fixed; top: 12px; right: 12px; padding: 10px 16px; background: rgba(255,255,255,0.9); border-radius: 20px; font-size: 12px; font-weight: 600; z-index: 9999; }
+        .status.online { color: #10b981; }
+        .status.offline { color: #ef4444; }
+        .header { text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #ff6b9d 0%, #c084fc 50%, #f472b6 100%); color: white; border-radius: 20px; margin-bottom: 40px; }
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 30px; }
+        .tab-btn { padding: 12px 24px; border: none; background: rgba(255,255,255,0.5); border-radius: 20px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+        .tab-btn.active { background: var(--pink-500); color: white; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .form { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
+        .form input, .form textarea { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #f0f0f0; border-radius: 10px; font-family: inherit; }
+        .form button { padding: 12px 24px; background: var(--pink-500); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card h3 { margin-bottom: 8px; }
+        .card p { font-size: 0.9em; color: #666; }
+        .empty { text-align: center; padding: 40px; color: #999; }
+        .btn-delete { background: #ef4444; color: white; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: var(--pink-500); color: white; padding: 12px 20px; border-radius: 10px; z-index: 10000; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(400px); } to { transform: translateX(0); } }
+        input[type="file"] { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="status online" id="status">🟢 Online</div>
+
+    <div class="container">
+        <div class="header">
+            <h1>💕 Kedarr & Seena 💕</h1>
+            <p>Website Realtime dengan Laravel 12 + MySQL</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('messages')">💌 Pesan Rahasia</button>
+            <button class="tab-btn" onclick="switchTab('gallery')">📸 Galeri Kenangan</button>
+            <button class="tab-btn" onclick="switchTab('playlist')">🎵 Playlist Cinta</button>
+        </div>
+
+        <!-- MESSAGES TAB -->
+        <div id="messages" class="section active">
+            <div class="form">
+                <h3>Kirim Pesan Rahasia 💌</h3>
+                <input type="text" id="msgText" placeholder="Ketik pesan... (max 1000 karakter)" maxlength="1000">
+                <select id="msgColor" style="padding: 12px; margin-bottom: 12px; border-radius: 10px;">
+                    <option value="pink">💗 Pink</option>
+                    <option value="purple">💜 Purple</option>
+                    <option value="blue">💙 Blue</option>
+                </select>
+                <button onclick="addMessage()">Kirim Pesan ✉️</button>
+            </div>
+            <div id="msgList" class="grid"></div>
+        </div>
+
+        <!-- GALLERY TAB -->
+        <div id="gallery" class="section">
+            <div class="form">
+                <h3>Upload Foto/Video 📸</h3>
+                <input type="file" id="galleryFile" accept="image/*,video/*">
+                <input type="text" id="galleryCaption" placeholder="Caption (opsional)">
+                <button onclick="addGallery()">Upload 📤</button>
+            </div>
+            <div id="galleryList" class="grid"></div>
+        </div>
+
+        <!-- PLAYLIST TAB -->
+        <div id="playlist" class="section">
+            <div class="form">
+                <h3>Upload Lagu 🎵</h3>
+                <input type="file" id="playlistFile" accept="audio/*">
+                <input type="text" id="playlistName" placeholder="Nama Lagu">
+                <button onclick="addPlaylist()">Upload 🎼</button>
+            </div>
+            <div id="playlistList" class="grid"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api';
+        let currentTab = 'messages';
+
+        // Online/Offline Status
+        window.addEventListener('online', () => updateStatus());
+        window.addEventListener('offline', () => updateStatus());
+
+        function updateStatus() {
+            const status = document.getElementById('status');
+            if (navigator.onLine) {
+                status.textContent = '🟢 Online';
+                status.className = 'status online';
+            } else {
+                status.textContent = '🔴 Offline';
+                status.className = 'status offline';
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelector(`#${tab}`).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            currentTab = tab;
+            loadData(tab);
+        }
+
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // MESSAGES
+        async function loadMessages() {
+            const resp = await fetch(`${API}/messages`);
+            const data = await resp.json();
+            const list = document.getElementById('msgList');
+            if (data.length === 0) {
+                list.innerHTML = '<div class="empty" style="grid-column: 1/-1;">Belum ada pesan... 💭</div>';
+                return;
+            }
+            list.innerHTML = data.map(msg => `
+                <div class="card">
+                    <div style="background: linear-gradient(135deg, #ff9a9e, #fad0c4); padding: 10px; border-radius: 8px; color: white; margin-bottom: 10px;">
+                        ${msg.text.substring(0, 80)}...
+                    </div>
+                    <small>${new Date(msg.created_at).toLocaleString('id-ID')}</small>
+                    <br>
+                    <button class="btn-delete" onclick="deleteMessage(${msg.id})">Hapus ✕</button>
+                </div>
+            `).join('');
+        }
+
+        async function addMessage() {
+            const text = document.getElementById('msgText').value.trim();
+            const color = document.getElementById('msgColor').value;
+            if (!text) { showToast('Isi pesan dulu! 🥺'); return; }
+            
+            const resp = await fetch(`${API}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, color, stickers: ['💕'] })
+            });
+            
+            if (resp.ok) {
+                showToast('Pesan dikirim! 💌');
+                document.getElementById('msgText').value = '';
+                loadMessages();
+            } else {
+                showToast('Error! ❌');
+            }
+        }
+
+        async function deleteMessage(id) {
+            if (!confirm('Hapus?')) return;
+            await fetch(`${API}/messages/${id}`, { method: 'DELETE' });
+            loadMessages();
+        }
+
+        // GALLERY
+        async function loadGallery() {
+            const resp = await fetch(`${API}/galleries`);
+            const data = await resp.json();
+            const list = document.getElementById('galleryList');
+            if (data.length === 0) {
+                list.innerHTML = '<div class="empty" style="grid-column: 1/-1;">Belum ada foto... 📸</div>';
+                return;
+            }
+            list.innerHTML = data.map(item => `
+                <div class="card">
+                    <img src="${item.url}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">
+                    <small>${item.caption || 'Foto'}</small>
+                    <br>
+                    <button class="btn-delete" onclick="deleteGallery(${item.id})">Hapus ✕</button>
+                </div>
+            `).join('');
+        }
+
+        async function addGallery() {
+            const file = document.getElementById('galleryFile').files[0];
+            if (!file) { showToast('Pilih file dulu! 📁'); return; }
+            
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('caption', document.getElementById('galleryCaption').value);
+            
+            const resp = await fetch(`${API}/galleries`, { method: 'POST', body: fd });
+            if (resp.ok) {
+                showToast('Foto uploaded! 📸');
+                document.getElementById('galleryFile').value = '';
+                document.getElementById('galleryCaption').value = '';
+                loadGallery();
+            } else {
+                showToast('Error upload! ❌');
+            }
+        }
+
+        async function deleteGallery(id) {
+            if (!confirm('Hapus?')) return;
+            await fetch(`${API}/galleries/${id}`, { method: 'DELETE' });
+            loadGallery();
+        }
+
+        // PLAYLIST
+        async function loadPlaylist() {
+            const resp = await fetch(`${API}/playlists`);
+            const data = await resp.json();
+            const list = document.getElementById('playlistList');
+            if (data.length === 0) {
+                list.innerHTML = '<div class="empty" style="grid-column: 1/-1;">Belum ada lagu... 🎵</div>';
+                return;
+            }
+            list.innerHTML = data.map(song => `
+                <div class="card">
+                    <h4>🎵 ${song.name}</h4>
+                    <audio controls style="width: 100%; margin: 10px 0;">
+                        <source src="${song.url}">
+                    </audio>
+                    <small>${new Date(song.created_at).toLocaleString('id-ID')}</small>
+                    <br>
+                    <button class="btn-delete" onclick="deletePlaylist(${song.id})">Hapus ✕</button>
+                </div>
+            `).join('');
+        }
+
+        async function addPlaylist() {
+            const file = document.getElementById('playlistFile').files[0];
+            const name = document.getElementById('playlistName').value.trim();
+            if (!file || !name) { showToast('Isi semua field! 🎵'); return; }
+            
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('name', name);
+            
+            const resp = await fetch(`${API}/playlists`, { method: 'POST', body: fd });
+            if (resp.ok) {
+                showToast('Lagu uploaded! 🎵');
+                document.getElementById('playlistFile').value = '';
+                document.getElementById('playlistName').value = '';
+                loadPlaylist();
+            } else {
+                showToast('Error upload! ❌');
+            }
+        }
+
+        async function deletePlaylist(id) {
+            if (!confirm('Hapus?')) return;
+            await fetch(`${API}/playlists/${id}`, { method: 'DELETE' });
+            loadPlaylist();
+        }
+
+        async function loadData(tab) {
+            if (tab === 'messages') loadMessages();
+            else if (tab === 'gallery') loadGallery();
+            else if (tab === 'playlist') loadPlaylist();
+        }
+
+        // Auto-refresh realtime setiap 3 detik
+        setInterval(() => {
+            loadData(currentTab);
+        }, 3000);
+
+        // Initial load
+        loadMessages();
+    </script>
+</body>
+</html>
